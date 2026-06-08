@@ -142,3 +142,5 @@ galaxy_config:
     interactivetools_proxy_host: "{{ galaxy_instance_hostname }}"
     interactivetoolsproxy_map: "sqlite:///{{ galaxy_interactivetoolsproxy_map }}"
     interactivetools_prefix: gxit
+    # Misc.
+    enable_notification_system: true
