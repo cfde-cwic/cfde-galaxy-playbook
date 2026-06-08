@@ -105,7 +105,7 @@ galaxy_config:
     watch_job_rules: true
     enable_quotas: true
     require_login: true
-    allow_user_creation: false
+    allow_local_account_creation: false
     allow_user_deletion: true
     enable_account_interface: false
     show_welcome_with_login: true
