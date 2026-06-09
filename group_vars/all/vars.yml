@@ -114,8 +114,7 @@ job_execution_packages:
   - "galaxy-schema=={{ galaxy_job_execution_version }}"
   - "galaxy-tool-util=={{ galaxy_job_execution_version }}"
   - "galaxy-util=={{ galaxy_job_execution_version }}"
-  # first version is 25.0
-  #- "galaxy-tool-util-models=={{ galaxy_job_execution_version }}"
+  - "galaxy-tool-util-models=={{ galaxy_job_execution_version }}"
   - edam-ontology
   - isa-rwval
   # for file sources
