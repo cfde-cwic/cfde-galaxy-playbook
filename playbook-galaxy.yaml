@@ -10,6 +10,11 @@
         state: directory
         mode: "0755"
       when: galaxy_local_tools is defined
+    - name: Create panel_views dir
+      file:
+        path: "{{ galaxy_config.galaxy.panel_views_dir }}"
+        state: directory
+        mode: "0755"
     - name: Create additional directories
       file:
         path: "{{ item }}"
