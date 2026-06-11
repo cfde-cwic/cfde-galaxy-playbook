@@ -118,7 +118,7 @@ job_execution_packages:
   - edam-ontology
   - isa-rwval
   # for file sources
-  - fs-gcsfs
+  - gcsfs
   - aiohttp
   - s3fs
   #- git+https://github.com/nsoranzo/isa-rwval.git@master#egg=isa-rwval
