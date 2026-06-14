@@ -96,6 +96,9 @@ galaxy_create_group: false
 galaxy_group: G-827737
 corral_root: /corral/projects/MCB25014
 
+galaxy_gxit_port_start: 32768
+galaxy_gxit_port_end: 32968
+
 cvmfs_role: client
 galaxy_cvmfs_repos_enabled: true
 

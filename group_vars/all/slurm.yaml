@@ -79,6 +79,12 @@ slurm_nodes:
     RealMemory: 63000  # slurmd -C reports RealMemory=63774
     State: UNKNOWN
     Weight: 0
+  - name: cfde-worker02
+    NodeAddr: 129.114.35.119
+    CPUS: 32
+    RealMemory: 63000  # slurmd -C reports RealMemory=63774
+    State: UNKNOWN
+    Weight: 0
 
 slurm_partitions:
   - name: galaxy
@@ -86,5 +92,5 @@ slurm_partitions:
     State: "UP"
   - name: normal
     Default: "YES"
-    Nodes: cfde-worker01
+    Nodes: cfde-worker[01-02]
     State: "UP"
