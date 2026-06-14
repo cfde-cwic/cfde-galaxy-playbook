@@ -78,7 +78,7 @@ all:
       hosts:
         cfde-worker01.tacc.utexas.edu:
           ansible_host: 129.114.35.73
-        cfde-worker01.tacc.utexas.edu:
+        cfde-worker02.tacc.utexas.edu:
           ansible_host: 129.114.35.119
 
     # Deploys CVMFS and configures as a client
