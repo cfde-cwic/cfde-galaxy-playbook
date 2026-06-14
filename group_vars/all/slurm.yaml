@@ -94,3 +94,4 @@ slurm_partitions:
     Default: "YES"
     Nodes: cfde-worker[01-02]
     State: "UP"
+    LLN: "YES"
