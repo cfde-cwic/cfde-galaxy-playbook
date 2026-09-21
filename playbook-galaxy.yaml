@@ -32,6 +32,16 @@
         mode: "0750"
       become: true
       become_user: "{{ galaxy_user }}"
+    - name: Install CFDE data access credential
+      ansible.builtin.copy:
+        src: files/galaxy/config/cfde-data-access-fdaf817cf042.json
+        dest: "{{ galaxy_shared_ro_root }}/config/cfde-data-access-fdaf817cf042.json"
+        mode: "{{ galaxy_config_perms }}"
+        group: "{{ galaxy_group_name | default(omit) }}"
+      become: true
+      become_user: "{{ galaxy_user_name }}"
+      notify:
+        - restart galaxy
   roles:
     - role: galaxyproject.galaxy.venv
     - role: galaxyproject.galaxy.clone
