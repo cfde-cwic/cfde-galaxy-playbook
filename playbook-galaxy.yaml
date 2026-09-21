@@ -25,6 +25,13 @@
       loop:
         - "{{ galaxy_shared_rw_root }}/tmp/apptainer_cache"
         - "{{ galaxy_shared_rw_root }}/tmp/apptainer_tmp"
+    - name: Create shared read-only config dir
+      file:
+        path: "{{ galaxy_shared_ro_root }}/config"
+        state: directory
+        mode: "0750"
+      become: true
+      become_user: "{{ galaxy_user }}"
   roles:
     - role: galaxyproject.galaxy.venv
     - role: galaxyproject.galaxy.clone
@@ -32,6 +39,7 @@
     - role: galaxyproject.galaxy.gravity
     - role: galaxyproject.galaxy.config
       tags: config
+      become_user: "{{ galaxy_user_name }}"
     - role: galaxyproject.galaxy.dependencies
     - role: galaxyproject.galaxy.state
       become_user: "{{ galaxy_user_name }}"
