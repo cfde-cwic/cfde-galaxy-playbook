@@ -53,3 +53,7 @@
       ansible.builtin.debug:
         msg: "No-op Galaxy restart handler, Galaxy has not been restarted"
       listen: "restart galaxy"
+    - name: galaxyctl update no-op
+      ansible.builtin.debug:
+        msg: "No-op galaxyctl update handler, gravity config has not been updated"
+      listen: "galaxyctl update"
