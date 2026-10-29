@@ -119,8 +119,7 @@ galaxy_config:
     # NFS workarounds
     retry_job_output_collection: 3
     # Debugging
-    #cleanup_job: onsuccess
-    cleanup_job: never
+    cleanup_job: onsuccess
     allow_user_impersonation: true
     # Tool security
     outputs_to_working_directory: true
