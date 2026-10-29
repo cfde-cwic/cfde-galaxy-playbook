@@ -108,7 +108,7 @@
         user: root
         hour: 0
         minute: 0
-        job: if [ /etc/letsencrypt/live/{{ galaxy_instance_certname }}/privkey.pem -nt /etc/rabbitmq/privkey.pem ]; then /bin/cp -p /etc/letsencrypt/live/{{ galaxy_instance_certname }}/privkey.pem /etc/rabbitmq/privkey.pem && chown root:rabbitmq /etc/rabbitmq/privkey.pem && systemctl restart rabbitmq-server; fi
+        job: if [ /etc/letsencrypt/live/{{ galaxy_instance_certname }}/privkey.pem -nt /etc/rabbitmq/privkey.pem ]; then /bin/cp -p /etc/letsencrypt/live/{{ galaxy_instance_certname }}/privkey.pem /etc/rabbitmq/privkey.pem && chown root:rabbitmq /etc/rabbitmq/privkey.pem && chmod 640 /etc/rabbitmq/privkey.pem && systemctl restart rabbitmq-server; fi
   tags:
     - rabbitmq
 
