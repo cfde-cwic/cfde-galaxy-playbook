@@ -239,12 +239,16 @@ tools:
         shell: /bin/bash
         identifier: ghcr.io/cfde-cwic/rstudio:3.21-1
 
-  Filter1:
+  _python3:
+    abstract: true
     params:
       container_override:
       - type: singularity
         shell: /bin/sh
         identifier: /cvmfs/singularity.galaxyproject.org/all/python:3.13
+
+  Filter1: {inherits: _python3}
+  gene2exon1: {inherits: _python3}
 
   hubmap_scrna_fastqc:
     cores: 4
