@@ -265,11 +265,15 @@ tools:
     mem: 3.7
 
   # TEST TEST TEST
-  secure_hash_message_digest:
-    scheduling:
-      require:
-      - pulsar
-      - ls6
+  #secure_hash_message_digest:
+  #  scheduling:
+  #    require:
+  #    - pulsar
+  #    - ls6
+
+  toolshed.g2.bx.psu.edu/repos/iuc/fastp/fastp/.*:
+    cores: 4
+    mem: min(max(int(input_size * 6), 12), 58)
 
   # overrides to avoid LS6
 
