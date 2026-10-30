@@ -66,6 +66,8 @@ destinations:
       - singularity
       # for TPV shared DB
       - docker
+      # user-defined tools are rejected by all destinations unless explicitly accepted
+      - tool_type_user_defined
 
   slurm_gxit:
     runner: slurm_pulsar
