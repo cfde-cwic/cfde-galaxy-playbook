@@ -66,7 +66,38 @@ destinations:
       - singularity
       # for TPV shared DB
       - docker
-      # user-defined tools are rejected by all destinations unless explicitly accepted
+
+  # User-defined tools: run via embedded Pulsar so inputs are staged (copied) into the job directory
+  # instead of mounting the whole object store, and the job directory is read-only in the container.
+  # Network is not isolated.
+  slurm_pulsar_udt:
+    runner: slurm_pulsar
+    min_accepted_cores: 1
+    min_accepted_mem: 0
+    max_accepted_cores: 4
+    max_accepted_mem: 32
+    params:
+      submit_native_specification: "--nodes=1 --ntasks={int(cores)} --mem={round(mem*1024)} --time={time} --partition=normal"
+      tmp_dir: true
+      outputs_to_working_directory: false
+      singularity_enabled: true
+      singularity_volumes: "$job_directory:ro,$job_directory/outputs:rw,$working_directory:rw"
+      require_container: true
+      remote_metadata: false
+      transport: curl
+      default_file_action: copy
+      dependency_resolution: remote
+      rewrite_parameters: true
+      jobs_directory: "{{ galaxy_pulsar_embedded_staging_directory }}"
+    env:
+    - name: APPTAINER_CACHEDIR
+      value: {{ galaxy_shared_rw_root }}/tmp/apptainer_cache
+    - name: APPTAINER_TMPDIR
+      value: {{ galaxy_shared_rw_root }}/tmp/apptainer_tmp
+    scheduling:
+      # user-defined tools are rejected by all destinations unless explicitly accepted; require
+      # ensures only user-defined tools are sent here
+      require:
       - tool_type_user_defined
 
   slurm_gxit:
