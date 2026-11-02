@@ -125,6 +125,9 @@ galaxy_config:
     # Debugging
     cleanup_job: onsuccess
     allow_user_impersonation: true
+    sentry_dsn: https://68b12e2dfbae5d90b39b32059183dbdb@sentry.galaxyproject.org/25
+    sentry_sloreq_threshold: 10.0
+    sentry_traces_sample_rate: 0.01
     # Tool security
     outputs_to_working_directory: true
     # Tool Dependencies
