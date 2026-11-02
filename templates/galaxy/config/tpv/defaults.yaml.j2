@@ -61,8 +61,9 @@ destinations:
     - name: APPTAINER_TMPDIR
       value: {{ galaxy_shared_rw_root }}/tmp/apptainer_tmp
     scheduling:
-      accept:
+      prefer:
       - general
+      accept:
       - singularity
       # for TPV shared DB
       - docker
@@ -136,6 +137,11 @@ destinations:
       #submit_native_specification: "--nodes=1 --ntasks={int(cores)} --ntasks-per-node={int(cores)} --time={time} --partition=vm-small"
       submit_native_specification: "--nodes=1 --ntasks={int(cores if force_cores else 16)} --time={time} --partition=vm-small"
     rules:
+    # jobs that fit on the local cluster never go to LS6
+    - if: cores <= 4 and mem <= 32
+      execute: |
+        from tpv.core.entities import TryNextDestinationOrFail
+        raise TryNextDestinationOrFail("job fits on the local cluster")
     - if: mem >= 32 or cores >= 16
       params:
         #submit_native_specification: "--nodes=1 --ntasks={int(cores)} --ntasks-per-node={int(cores)} --time={time} --partition=normal"
@@ -183,7 +189,7 @@ tools:
     - name: HDF5_USE_FILE_LOCKING
       value: "FALSE"
     scheduling:
-      accept:
+      prefer:
       - general
       reject:
       - offline
