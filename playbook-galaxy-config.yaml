@@ -17,15 +17,17 @@
         mode: "0755"
     - name: Create additional directories
       file:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
         state: directory
-        mode: "0750"
+        mode: "{{ item.mode | default('0750') }}"
       become: true
       become_user: "{{ galaxy_user }}"
       loop:
-        - "{{ galaxy_shared_rw_root }}/tmp/apptainer_cache"
-        - "{{ galaxy_shared_rw_root }}/tmp/apptainer_tmp"
-        - "{{ galaxy_shared_ro_root }}/config"
+        - path: "{{ galaxy_shared_rw_root }}/tmp/apptainer_cache"
+          mode: "0755"
+        - path: "{{ galaxy_shared_rw_root }}/tmp/apptainer_tmp"
+          mode: "0755"
+        - path: "{{ galaxy_shared_ro_root }}/config"
     - name: Install CFDE data access credential
       ansible.builtin.copy:
         src: files/galaxy/config/cfde-data-access-fdaf817cf042.json
