@@ -135,17 +135,26 @@ destinations:
       - type: mulled_singularity
       require_container: true
       #submit_native_specification: "--nodes=1 --ntasks={int(cores)} --ntasks-per-node={int(cores)} --time={time} --partition=vm-small"
-      submit_native_specification: "--nodes=1 --ntasks={int(cores if force_cores else 16)} --time={time} --partition=vm-small"
+      submit_native_specification: "-A MCB25014 --nodes=1 --ntasks={int(cores if force_cores else 16)} --time={time} --partition=vm-small{' --reservation=' + ls6_reservation if ls6_reservation else ''}"
     rules:
     # jobs that fit on the local cluster never go to LS6
     - if: cores <= 4 and mem <= 32
       execute: |
         from tpv.core.entities import TryNextDestinationOrFail
         raise TryNextDestinationOrFail("job fits on the local cluster")
+    - id: ls6_reservation_rule
+      if: true
+      execute: |
+        from datetime import datetime
+
+        if datetime(2026, 11, 3, 17, 45) <= datetime.now() < datetime(2026, 11, 3, 20, 15):
+            entity.context["ls6_reservation"] = "CWIC_galaxy_Tue"
+        elif datetime(2026, 11, 4, 9, 45) <= datetime.now() < datetime(2026, 11, 4, 18, 15):
+            entity.context["ls6_reservation"] = "CWIC_galaxy_Wed"
     - if: mem >= 32 or cores >= 16
       params:
         #submit_native_specification: "--nodes=1 --ntasks={int(cores)} --ntasks-per-node={int(cores)} --time={time} --partition=normal"
-        submit_native_specification: "--nodes=1 --ntasks={int(cores if force_cores else 128)} --time={time} --partition=normal"
+        submit_native_specification: "-A MCB25014 --nodes=1 --ntasks={int(cores if force_cores else 128)} --time={time} --partition=normal{' --reservation=' + ls6_reservation if ls6_reservation else ''}"
     env:
     - file: /etc/profile.d/z01_lmod.sh
     - execute: module unload xalt
@@ -181,6 +190,7 @@ tools:
     context:
       time: "48:00:00"
       force_cores: false
+      ls6_reservation: null
     params:
       use_metadata_binary: true
     env:
