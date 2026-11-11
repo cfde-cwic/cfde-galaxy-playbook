@@ -52,9 +52,9 @@
     - role: galaxyproject.galaxy.dependencies
     - role: galaxyproject.galaxy.state
       become_user: "{{ galaxy_user_name }}"
+    - role: galaxyproject.galaxy.client
     - role: galaxyproject.galaxy.database
       become_user: "{{ galaxy_user_name }}"
-    - role: galaxyproject.galaxy.client
   post_tasks:
     - name: Remove node_modules
       file:
