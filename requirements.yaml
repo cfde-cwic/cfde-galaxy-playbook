@@ -37,4 +37,4 @@ collections:
   - name: galaxyproject.general
     version: 1.4.1
   - name: galaxyproject.galaxy
-    version: 1.1.0
+    version: 1.2.0
