@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+##
+## This file is maintained by Ansible - CHANGES WILL BE OVERWRITTEN
+## Based on: galaxyproject/infrastructure-playbook templates/cron/cleanup_galaxy_all.sh.j2
+##
+# set -eo pipefail not used here because removals in scratch dirs while running cause find to exit nonzero
+set -u
+
+# per-host: $HOME may be shared between hosts
+MUTEX="$HOME/.galaxy-clean-$(hostname -s).lock"
+MUTEX_ACQUIRED=false
+
+function trap_handler() {
+    $MUTEX_ACQUIRED && rmdir "$MUTEX"
+    return 0
+}
+trap "trap_handler" EXIT
+
+if mkdir "$MUTEX"; then
+    MUTEX_ACQUIRED=true
+{
+    set -x;
+{% for job in galaxy_cleanup_jobs %}
+    {{ job }};
+{% endfor %}
+    { set +x; } 2>/dev/null;
+} > {{ galaxy_log_dir }}/cleanup_daily-$(date +%Y-%m-%d).log 2>&1
+fi

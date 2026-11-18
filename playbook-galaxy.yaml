@@ -127,3 +127,31 @@
         dest: "{{ galaxy_static_dir }}/welcome.html"
         mode: "0644"
       tags: welcome
+
+    - name: Create cleanup scripts dir
+      ansible.builtin.file:
+        path: "{{ galaxy_cleanup_bin_dir }}"
+        state: directory
+        mode: "0755"
+      when: "inventory_hostname in groups['galaxy_cleanup_servers']"
+      tags: cleanup
+
+    - name: Install cleanup scripts
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ galaxy_cleanup_bin_dir }}/{{ item.dest }}"
+        mode: "0755"
+      loop:
+        - src: cron/cleanup_galaxy_all.sh.j2
+          dest: cleanup_galaxy_all.sh
+        - src: admin/pulsar-clean-jobs.j2
+          dest: pulsar-clean-jobs
+      when: "inventory_hostname in groups['galaxy_cleanup_servers']"
+      tags: cleanup
+
+    - name: Schedule cleanup cron jobs
+      ansible.builtin.include_role:
+        name: galaxyproject.general.cron
+        apply:
+          tags: cleanup
+      tags: cleanup

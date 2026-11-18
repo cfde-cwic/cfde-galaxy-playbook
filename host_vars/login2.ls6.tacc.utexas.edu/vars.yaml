@@ -11,12 +11,15 @@ pulsar_directories:
   - path: "{{ pulsar_root }}/log"
     mode: "0750"
 
-#host_crontabs:
-#  - id: "pulsar-clean-{{ galaxy_instance_codename }}-scratch"
-#    use_cron_file: false
-#    minute: "{{ 59 | random(seed=galaxy_instance_codename) }}"
-#    hour: "*/6"
-#    job: "{{ _ls6_home_root }}/bin/pulsar-clean-jobs {{ pulsar_staging_dir }} >> {{ pulsar_root }}/log/pulsar-clean-jobs.log 2>&1"
+pulsar_cleanup_bin_dir: "{{ _ls6_home_root }}/bin"
+
+# user crontab: only exists on this login node
+host_crontabs:
+  - id: "pulsar-clean-scratch"
+    use_cron_file: false
+    minute: "{{ 59 | random(seed=inventory_hostname) }}"
+    hour: "*/6"
+    job: "{{ pulsar_cleanup_bin_dir }}/pulsar-clean-jobs {{ pulsar_yaml_config.managers.values() | map(attribute='staging_directory') | join(' ') }} >> {{ pulsar_root }}/log/pulsar-clean-jobs.log 2>&1"
 #  - id: "pulsar-clean-{{ galaxy_instance_codename }}-amqp-consume"
 #    use_cron_file: false
 #    minute: "15"

@@ -1,0 +1,212 @@
+#!/bin/bash
+##
+## This file is maintained by Ansible - CHANGES WILL BE OVERWRITTEN
+## Source: galaxyproject/infrastructure-playbook templates/admin/pulsar-clean-jobs.j2
+##
+set -euo pipefail
+
+PERCENT=
+HOURS=
+WARN_HOURS=$((3 * 24))
+LIMIT_HOURS=$((7 * 24))
+DRY_RUN=false
+DIR=
+# per-host: $HOME may be shared between hosts
+MUTEX="$HOME/pulsar-clean-jobs-$(hostname -s).lock"
+MUTEX_ACQUIRED=false
+
+function usage() {
+    echo "usage: $0 [-hn] DIR..."
+    if [ "${1:-}" = 'help' ]; then
+        cat <<EOF
+    -h      print help
+    -n      dry run
+    -r      override hours
+    DIR     staging dir(s) to clean
+EOF
+    fi
+}
+
+while getopts ":hnr:" opt; do
+    case "$opt" in
+        h)
+            usage help
+            exit 0
+            ;;
+        n)
+            DRY_RUN=true
+            ;;
+        r)
+            HOURS="$OPTARG"
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+[ -n "${1:-}" ] || { usage; exit 2; }
+
+
+function trap_handler() {
+    if $MUTEX_ACQUIRED; then
+        rmdir "$MUTEX"
+        log "Released mutex: $MUTEX"
+    fi
+    return 0
+}
+trap "trap_handler" EXIT
+
+
+function isintorempty() {
+    # if the value passed in $1 is:
+    #   an integer: return 0
+    #   empty: return 1
+    #   not an integer: return 2
+    [ -n "${1}" ] || return 1
+    [ "${1}" -eq "${1}" ] 2>/dev/null || { rc=$?; [ $rc -ne 2 ] || { echo "ERROR: invalid non-integer value: ${1}"; }; return $rc; }
+    return 0
+}
+
+
+function isint() {
+    if isintorempty "$1"; then
+        return 0
+    else
+        [ $? -ne 1 ] || echo "ERROR: value cannot be empty string"
+        return 1
+    fi
+}
+
+
+function log() {
+    [ -t 0 ] && echo -e '\033[1;32mINFO: ' "$@" '\033[0m' || echo 'INFO:' "$@"
+}
+
+
+function log_warning() {
+    [ -t 0 ] && echo -e '\033[1;33mWARNING:' "$@" '\033[0m' || echo 'WARNING:' "$@"
+}
+
+
+function log_error() {
+    [ -t 0 ] && echo -e '\033[1;31mERROR:' "$@" '\033[0m' || echo 'ERROR:' "$@" >&2
+}
+
+
+function error() {
+    log_error "$@"
+    exit 1
+}
+
+
+function percent_full() {
+    {{ pulsar_clean_jobs_percent_full_function | default("echo 0") }}
+}
+
+
+function hours() {
+    isint "$PERCENT" || exit 1
+    # max of 5 days, scaled by percent full with a max allowed of 95%, after which the time is 0
+    if [[ $PERCENT -ge 95 ]]; then
+        echo 0
+    else
+        printf "%.0f\n" "$(echo "(5*24)*(95-${PERCENT})/95" | bc -l)"
+    fi
+}
+
+
+function is_active() {
+    local id="$1"
+    if [ -f "${DIR}/${id}/final_status" -a -f "${DIR}/${id}/postprocessed" ]; then
+        return 1
+    elif [ -f "${DIR}/${id}/cancelled" ]; then
+        return 1
+    fi
+    return 0
+}
+
+
+function is_active_slurm() {
+    local id="$1"
+    local dir="${DIR}/${id}"
+    local slurm_id
+    if [ -f "${dir}/external_id" ]; then
+        slurm_id=$(cat "${dir}/external_id" | tr -d '"') || true
+        if isint "$slurm_id"; then
+            if squeue -j $slurm_id; then
+                log "${id}: Slurm job ${slurm_id} is still running"
+            else
+                log_warning "${id}: Slurm job not found: ${slurm_id}"
+                return 1
+            fi
+        else
+            log_error "${id}: Failed to read Slurm job ID"
+            return 1
+        fi
+    else
+        log_warning "${id}: File not found: ${dir}/external_id"
+        return 1
+    fi
+    return 0
+}
+
+
+function clean_dir() {
+    local id="$1"
+    local dir="${DIR}/${id}"
+    log "${id}: Removing: $dir"
+    $DRY_RUN || rm -rf "$dir"
+}
+
+
+function clean() {
+    PERCENT=$(percent_full)
+    local hours min_mtime mtime id
+    local now=$(date '+%s')
+    if [ -n "$HOURS" ]; then
+        log "Hours overridden by -r option: $HOURS"
+        hours="$HOURS"
+    else
+        hours=$(hours)
+    fi
+    min_mtime=$(date --date="$hours hours ago" '+%s')
+    log "At $(date), $DIR is ${PERCENT}% full; scratch dirs older than $(date --date="$hours hours ago") ($hours hours) will be removed"
+    while read mtime id; do
+        isint "$id" || error "dir is not an integer, is $DIR a staging dir?: $id"
+        if is_active "$id"; then
+            if [[ $(($now - $mtime)) -gt $(($LIMIT_HOURS * 60 * 60)) ]]; then
+                log_warning "${id}: Supposedly active job dir older than limit $LIMIT_HOURS hours"
+                if is_active_slurm "$id"; then
+                    log "${id}: Resetting dir mtime for active job still in Slurm"
+                    $DRY_RUN || touch "${DIR}/${id}"
+                else
+                    clean_dir "$id" || log_error "Removal failed: ${id}"
+                fi
+            elif [[ $(($now - $mtime)) -gt $(($WARN_HOURS * 60 * 60)) ]]; then
+                log_warning "${id}: Supposedly active job dir older than warn $WARN_HOURS hours"
+                if is_active_slurm "$id"; then
+                    log "${id}: Resetting dir mtime for active job still in Slurm"
+                    $DRY_RUN || touch "${DIR}/${id}"
+                fi
+            else
+                log "${id}: Ignoring active"
+            fi
+        else
+            clean_dir "$id" || log_error "Removal failed: ${id}"
+        fi
+    done < <(ls -lrt --time-style=+%s "$DIR" | tail -n +2 | awk "\$6 < $min_mtime {print \$6, \$7}")
+}
+
+
+function main() {
+    for DIR in "$@"; do
+        [ -d "$DIR" ] || error "Invalid directory: $DIR"
+        clean
+    done
+}
+
+
+if mkdir "$MUTEX"; then
+    log "Acquired mutex: $MUTEX"
+    MUTEX_ACQUIRED=true
+    main "$@"
+fi

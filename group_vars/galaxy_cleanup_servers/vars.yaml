@@ -1,0 +1,9 @@
+---
+
+galaxy_cleanup_servers_group_crontabs:
+  - name: "Clean Galaxy {{ galaxy_instance_codename }}"
+    id: "galaxy_{{ galaxy_instance_codename }}_clean"
+    user: "{{ galaxy_user_name }}"
+    hour: "3"
+    minute: "{{ 59 | random(seed=inventory_hostname) }}"
+    job: "{{ galaxy_cleanup_bin_dir }}/cleanup_galaxy_all.sh"
