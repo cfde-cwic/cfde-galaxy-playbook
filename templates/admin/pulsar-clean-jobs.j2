@@ -4,6 +4,7 @@
 ## Based on: galaxyproject/infrastructure-playbook templates/admin/pulsar-clean-jobs.j2, changed to:
 ## - keep dirs if Slurm can't be queried (only "Invalid job id" or a finished job state means the job is gone)
 ## - use flock instead of a mutex dir, so a killed run doesn't block later runs
+## - skip (instead of abort on) non-job entries, list entries with find instead of parsing ls
 ## - not require bc
 ##
 set -euo pipefail
@@ -18,7 +19,7 @@ DIR=
 LOCK="${TMPDIR:-/tmp}/pulsar-clean-jobs-$(id -un).lock"
 
 function usage() {
-    echo "usage: $0 [-hn] DIR..."
+    echo "usage: $0 [-hn] [-r HOURS] DIR..."
     if [ "${1:-}" = 'help' ]; then
         cat <<EOF
     -h      print help
@@ -40,6 +41,10 @@ while getopts ":hnr:" opt; do
             ;;
         r)
             HOURS="$OPTARG"
+            ;;
+        *)
+            usage
+            exit 2
             ;;
     esac
 done
@@ -194,8 +199,12 @@ function clean() {
     fi
     min_mtime=$(date --date="$hours hours ago" '+%s')
     log "At $(date), $DIR is ${PERCENT}% full; scratch dirs older than $(date --date="$hours hours ago") ($hours hours) will be removed"
-    while read mtime id; do
-        isint "$id" || error "dir is not an integer, is $DIR a staging dir?: $id"
+    while read -r mtime id; do
+        mtime="${mtime%.*}"
+        if ! isint "$id" >/dev/null; then
+            log_warning "Skipping non-job entry, is $DIR a staging dir?: ${DIR}/${id}"
+            continue
+        fi
         if is_active "$id"; then
             if [[ $(($now - $mtime)) -gt $(($LIMIT_HOURS * 60 * 60)) ]]; then
                 log_warning "${id}: Supposedly active job dir older than limit $LIMIT_HOURS hours"
@@ -209,7 +218,7 @@ function clean() {
         else
             clean_dir "$id" || log_error "Removal failed: ${id}"
         fi
-    done < <(ls -lrt --time-style=+%s "$DIR" | tail -n +2 | awk "\$6 < $min_mtime {print \$6, \$7}")
+    done < <(find "$DIR" -mindepth 1 -maxdepth 1 ! -newermt "@${min_mtime}" -printf '%T@ %f\n' | sort -n)
 }
 
 
