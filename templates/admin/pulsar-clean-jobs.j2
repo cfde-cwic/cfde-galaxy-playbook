@@ -139,6 +139,10 @@ function is_active_slurm() {
         log_error "${id}: Failed to read Slurm job ID, keeping dir"
         return 2
     fi
+    if ! command -v squeue >/dev/null; then
+        log_error "${id}: squeue not found in PATH ($PATH), keeping dir"
+        return 2
+    fi
     rc=0
     out=$(squeue -h -j "$slurm_id" -o %T 2>&1) || rc=$?
     if [ $rc -ne 0 ]; then
@@ -232,7 +236,6 @@ function clean() {
 
 
 function main() {
-    command -v squeue >/dev/null || error "squeue not found in PATH: $PATH"
     for DIR in "$@"; do
         [ -d "$DIR" ] || error "Invalid directory: $DIR"
         clean
