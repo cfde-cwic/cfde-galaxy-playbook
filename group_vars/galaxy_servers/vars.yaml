@@ -49,7 +49,7 @@ galaxy_cleanup_jobs:
   # job working dirs of finished jobs (successful ones are already removed by cleanup_job: onsuccess)
   - "{{ galaxy_cleanup_bin_dir }}/galaxy-clean-job-dirs"
   # empty job dir hash dirs, idle >1h to avoid racing Galaxy creating a new job dir
-  - "/bin/find {{ galaxy_job_working_directory }} -mindepth 1 -maxdepth 3 -type d -regextype posix-extended -regex '{{ galaxy_job_working_directory }}/[0-9]{3}(/[0-9]{3}){0,2}' -empty -mmin +60 -print -delete"
+  - "/bin/find {{ galaxy_job_working_directory }} -mindepth 1 -maxdepth 3 -ignore_readdir_race -type d -regextype posix-extended -regex '{{ galaxy_job_working_directory }}/[0-9]{3}(/[0-9]{3}){0,2}' -empty -mmin +60 -print -delete"
   # embedded pulsar staging dirs
   - "{{ galaxy_cleanup_bin_dir }}/pulsar-clean-jobs {{ galaxy_pulsar_embedded_staging_directory }}"
   # this script's own logs

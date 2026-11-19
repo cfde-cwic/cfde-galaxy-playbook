@@ -226,7 +226,7 @@ function clean() {
         else
             clean_dir "$id"
         fi
-    done < <(find "$DIR" -mindepth 1 -maxdepth 1 ! -newermt "@${min_mtime}" -printf '%T@ %f\n' | sort -n)
+    done < <(find "$DIR" -mindepth 1 -maxdepth 1 -ignore_readdir_race ! -newermt "@${min_mtime}" -printf '%T@ %f\n' | sort -n)
     # exit status of the find | sort in the process substitution
     if ! wait $!; then
         log_error "Failed to list $DIR"
