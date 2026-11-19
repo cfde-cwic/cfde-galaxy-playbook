@@ -65,7 +65,7 @@ all:
     galaxy_cleanup_servers:
       hosts:
         cfde-galaxy-dev.tacc.utexas.edu:
-        #cfde-galaxy.tacc.utexas.edu:
+        cfde-galaxy.tacc.utexas.edu:
 
     galaxy_dev_servers:
       hosts:
