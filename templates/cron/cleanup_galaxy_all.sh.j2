@@ -3,7 +3,7 @@
 ## This file is maintained by Ansible - CHANGES WILL BE OVERWRITTEN
 ## Based on: galaxyproject/infrastructure-playbook templates/cron/cleanup_galaxy_all.sh.j2
 ##
-# set -eo pipefail not used here because removals in scratch dirs while running cause find to exit nonzero
+# set -e not used here: run every cleanup step even if an earlier one fails, and report all failures at the end
 set -u
 
 LOG="{{ galaxy_log_dir }}/cleanup_daily-$(date +%Y-%m-%d).log"
@@ -17,10 +17,32 @@ if ! flock -n 9; then
     exit 1
 fi
 
+# count failures separately: bash's array length syntax opens a Jinja comment in this template
+failed=()
+nfailed=0
+
+function run() {
+    local rc=0
+    echo "$(date '+%F %T') + $1"
+    eval "$1" || rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "FAILED (exit $rc): $1"
+        failed+=("$1")
+        nfailed=$((nfailed + 1))
+    fi
+}
+
 {
-    set -x;
 {% for job in galaxy_cleanup_jobs %}
-    {{ job }};
+    run {{ job | quote }}
 {% endfor %}
-    { set +x; } 2>/dev/null;
 } >> "$LOG" 2>&1
+
+# stderr goes to cron, which reports it
+if [ $nfailed -gt 0 ]; then
+    {
+        echo "Galaxy cleanup on $(hostname -s): $nfailed step(s) failed, see $LOG"
+        printf '  %s\n' "${failed[@]}"
+    } >&2
+    exit 1
+fi
