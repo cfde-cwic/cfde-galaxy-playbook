@@ -3,6 +3,7 @@
 ## This file is maintained by Ansible - CHANGES WILL BE OVERWRITTEN
 ## Based on: galaxyproject/infrastructure-playbook templates/admin/pulsar-clean-jobs.j2, changed to:
 ## - keep dirs if Slurm can't be queried (only "Invalid job id" or a finished job state means the job is gone)
+## - use flock instead of a mutex dir, so a killed run doesn't block later runs
 ##
 set -euo pipefail
 
@@ -12,9 +13,8 @@ WARN_HOURS=$((3 * 24))
 LIMIT_HOURS=$((7 * 24))
 DRY_RUN=false
 DIR=
-# per-host: $HOME may be shared between hosts
-MUTEX="$HOME/pulsar-clean-jobs-$(hostname -s).lock"
-MUTEX_ACQUIRED=false
+# flock on a local file: released by the kernel even if this script is killed
+LOCK="${TMPDIR:-/tmp}/pulsar-clean-jobs-$(id -un).lock"
 
 function usage() {
     echo "usage: $0 [-hn] DIR..."
@@ -45,16 +45,6 @@ done
 shift $((OPTIND-1))
 
 [ -n "${1:-}" ] || { usage; exit 2; }
-
-
-function trap_handler() {
-    if $MUTEX_ACQUIRED; then
-        rmdir "$MUTEX"
-        log "Released mutex: $MUTEX"
-    fi
-    return 0
-}
-trap "trap_handler" EXIT
 
 
 function isintorempty() {
@@ -230,8 +220,10 @@ function main() {
 }
 
 
-if mkdir "$MUTEX"; then
-    log "Acquired mutex: $MUTEX"
-    MUTEX_ACQUIRED=true
-    main "$@"
+exec 9>"$LOCK"
+if ! flock -n 9; then
+    log_warning "Another run is in progress (lock: $LOCK), exiting"
+    exit 0
 fi
+log "Acquired lock: $LOCK"
+main "$@"
