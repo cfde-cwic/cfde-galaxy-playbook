@@ -4,6 +4,7 @@
 ## Based on: galaxyproject/infrastructure-playbook templates/admin/pulsar-clean-jobs.j2, changed to:
 ## - keep dirs if Slurm can't be queried (only "Invalid job id" or a finished job state means the job is gone)
 ## - use flock instead of a mutex dir, so a killed run doesn't block later runs
+## - not require bc
 ##
 set -euo pipefail
 
@@ -100,7 +101,8 @@ function hours() {
     if [[ $PERCENT -ge 95 ]]; then
         echo 0
     else
-        printf "%.0f\n" "$(echo "(5*24)*(95-${PERCENT})/95" | bc -l)"
+        # rounded to the nearest hour
+        echo $(( (5 * 24 * (95 - PERCENT) + 47) / 95 ))
     fi
 }
 
