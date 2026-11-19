@@ -1,0 +1,56 @@
+#!/bin/bash
+##
+## This file is maintained by Ansible - CHANGES WILL BE OVERWRITTEN
+##
+# Remove Galaxy job working dirs older than DAYS days, except those of jobs that are not finished according to the
+# Galaxy database. Job dir mtime alone can't be trusted: a running job (especially one executed via Pulsar, which works
+# in its own staging dir) may not touch its Galaxy job dir for weeks.
+#
+# Job dirs are hashed by job id (galaxy.util.directory_hash_id) and the depth depends on the id length:
+# 4-5 digits: 001/1234, 6-8 digits: 000/123/123456, 9-11 digits: 000/100/000/100000000. Match exactly those
+# paths instead of a fixed depth. Ids < 1000 (000/123) are indistinguishable from hash dirs and are not matched.
+set -euo pipefail
+
+JOBS_DIR='{{ galaxy_job_working_directory }}'
+DAYS='{{ galaxy_cleanup_job_dir_days }}'
+DATABASE='{{ galaxy_config.galaxy.database_connection }}'
+DRY_RUN=false
+
+while getopts ":n" opt; do
+    case "$opt" in
+        n)
+            DRY_RUN=true
+            ;;
+        *)
+            echo "usage: $0 [-n]" >&2
+            exit 2
+            ;;
+    esac
+done
+
+regex="${JOBS_DIR}/([0-9]{3}/[0-9]{4,5}|[0-9]{3}/[0-9]{3}/[0-9]{6,8}|[0-9]{3}/[0-9]{3}/[0-9]{3}/[0-9]{9,11})"
+
+# Anything not in a known final state counts as active, including NULL and states added in the future. If the query
+# fails, set -e exits here and nothing is removed.
+active=$(psql -XAtq -v ON_ERROR_STOP=1 -d "$DATABASE" \
+    -c "SELECT id FROM job WHERE state IS NULL OR state NOT IN ('ok', 'error', 'deleted', 'failed', 'stopped', 'skipped')")
+declare -A is_active
+for id in $active; do
+    is_active[$id]=1
+done
+
+rc=0
+while IFS= read -r -d '' dir; do
+    id="${dir##*/}"
+    if [ -n "${is_active[$id]:-}" ]; then
+        echo "${id}: job is not finished, keeping: $dir"
+        continue
+    fi
+    echo "${id}: removing: $dir"
+    $DRY_RUN || rm -rf -- "$dir" || { echo "${id}: removal failed: $dir" >&2; rc=1; }
+done < <(find "$JOBS_DIR" -mindepth 2 -maxdepth 4 -ignore_readdir_race -type d -regextype posix-extended -regex "$regex" \
+    -prune -mtime "+${DAYS}" -print0)
+# exit status of find in the process substitution
+wait $! || rc=1
+
+exit $rc

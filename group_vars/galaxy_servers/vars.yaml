@@ -42,6 +42,19 @@ galaxy_config_new_file_path: "{{ galaxy_shared_rw_root }}/scratch"
 #  - "{{ galaxy_config.galaxy.new_file_path | default((galaxy_mutable_data_dir, 'tmp') | path_join) }}"
 #  - "{{ galaxy_tus_upload_store }}"
 
+## used by: cleanup cron job script (hosts in galaxy_cleanup_servers)
+galaxy_cleanup_bin_dir: "{{ galaxy_local_root }}/bin"
+galaxy_cleanup_job_dir_days: 14
+galaxy_cleanup_jobs:
+  # job working dirs of finished jobs (successful ones are already removed by cleanup_job: onsuccess)
+  - "{{ galaxy_cleanup_bin_dir }}/galaxy-clean-job-dirs"
+  # empty job dir hash dirs, idle >1h to avoid racing Galaxy creating a new job dir
+  - "/bin/find {{ galaxy_job_working_directory }} -mindepth 1 -maxdepth 3 -ignore_readdir_race -type d -regextype posix-extended -regex '{{ galaxy_job_working_directory }}/[0-9]{3}(/[0-9]{3}){0,2}' -empty -mmin +60 -print -delete"
+  # embedded pulsar staging dirs
+  - "{{ galaxy_cleanup_bin_dir }}/pulsar-clean-jobs {{ galaxy_pulsar_embedded_staging_directory }}"
+  # this script's own logs
+  - "/bin/find {{ galaxy_log_dir }} -maxdepth 1 -name 'cleanup_daily-*.log' -mtime +30 -print -delete"
+
 # Run Galaxy with Gravity
 galaxy_systemd_mode: gravity
 

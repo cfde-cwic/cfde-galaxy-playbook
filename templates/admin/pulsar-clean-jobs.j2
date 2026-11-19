@@ -1,0 +1,253 @@
+#!/bin/bash
+##
+## This file is maintained by Ansible - CHANGES WILL BE OVERWRITTEN
+## Based on: galaxyproject/infrastructure-playbook templates/admin/pulsar-clean-jobs.j2, changed to:
+## - keep dirs if Slurm can't be queried (only "Invalid job id" or a finished job state means the job is gone)
+## - use flock instead of a mutex dir, so a killed run doesn't block later runs
+## - skip (instead of abort on) non-job entries, list entries with find instead of parsing ls
+## - not require bc
+## - exit nonzero if anything failed
+##
+set -euo pipefail
+
+PERCENT=
+HOURS=
+WARN_HOURS=$((3 * 24))
+LIMIT_HOURS=$((7 * 24))
+DRY_RUN=false
+DIR=
+FAILED=false
+# flock on a local file: released by the kernel even if this script is killed
+LOCK="${TMPDIR:-/tmp}/pulsar-clean-jobs-$(id -un).lock"
+
+function usage() {
+    echo "usage: $0 [-hn] [-r HOURS] DIR..."
+    if [ "${1:-}" = 'help' ]; then
+        cat <<EOF
+    -h      print help
+    -n      dry run
+    -r      override hours
+    DIR     staging dir(s) to clean
+EOF
+    fi
+}
+
+while getopts ":hnr:" opt; do
+    case "$opt" in
+        h)
+            usage help
+            exit 0
+            ;;
+        n)
+            DRY_RUN=true
+            ;;
+        r)
+            HOURS="$OPTARG"
+            ;;
+        *)
+            usage
+            exit 2
+            ;;
+    esac
+done
+shift $((OPTIND-1))
+
+[ -n "${1:-}" ] || { usage; exit 2; }
+
+
+function isintorempty() {
+    # if the value passed in $1 is:
+    #   an integer: return 0
+    #   empty: return 1
+    #   not an integer: return 2
+    [ -n "${1}" ] || return 1
+    [ "${1}" -eq "${1}" ] 2>/dev/null || { rc=$?; [ $rc -ne 2 ] || { echo "ERROR: invalid non-integer value: ${1}"; }; return $rc; }
+    return 0
+}
+
+
+function isint() {
+    if isintorempty "$1"; then
+        return 0
+    else
+        [ $? -ne 1 ] || echo "ERROR: value cannot be empty string"
+        return 1
+    fi
+}
+
+
+function log() {
+    [ -t 0 ] && echo -e '\033[1;32mINFO: ' "$@" '\033[0m' || echo 'INFO:' "$@"
+}
+
+
+function log_warning() {
+    [ -t 0 ] && echo -e '\033[1;33mWARNING:' "$@" '\033[0m' || echo 'WARNING:' "$@"
+}
+
+
+function log_error() {
+    [ -t 0 ] && echo -e '\033[1;31mERROR:' "$@" '\033[0m' || echo 'ERROR:' "$@" >&2
+}
+
+
+function error() {
+    log_error "$@"
+    exit 1
+}
+
+
+function percent_full() {
+    {{ pulsar_clean_jobs_percent_full_function | default("echo 0") }}
+}
+
+
+function hours() {
+    isint "$PERCENT" || exit 1
+    # max of 5 days, scaled by percent full with a max allowed of 95%, after which the time is 0
+    if [[ $PERCENT -ge 95 ]]; then
+        echo 0
+    else
+        # rounded to the nearest hour
+        echo $(( (5 * 24 * (95 - PERCENT) + 47) / 95 ))
+    fi
+}
+
+
+function is_active() {
+    local id="$1"
+    if [ -f "${DIR}/${id}/final_status" -a -f "${DIR}/${id}/postprocessed" ]; then
+        return 1
+    elif [ -f "${DIR}/${id}/cancelled" ]; then
+        return 1
+    fi
+    return 0
+}
+
+
+function is_active_slurm() {
+    # returns 0 if the job is in Slurm, 1 if it is not, 2 if that can't be determined
+    local id="$1"
+    local dir="${DIR}/${id}"
+    local slurm_id out rc
+    if [ ! -f "${dir}/external_id" ]; then
+        log_warning "${id}: File not found: ${dir}/external_id"
+        return 1
+    fi
+    slurm_id=$(tr -d '"' < "${dir}/external_id") || true
+    if ! isint "$slurm_id"; then
+        log_error "${id}: Failed to read Slurm job ID, keeping dir"
+        return 2
+    fi
+    if ! command -v squeue >/dev/null; then
+        log_error "${id}: squeue not found in PATH ($PATH), keeping dir"
+        return 2
+    fi
+    rc=0
+    out=$(squeue -h -j "$slurm_id" -o %T 2>&1) || rc=$?
+    if [ $rc -ne 0 ]; then
+        if [[ "$out" == *"Invalid job id"* ]]; then
+            log_warning "${id}: Slurm job not found: ${slurm_id}"
+            return 1
+        fi
+        log_error "${id}: Unable to query Slurm for job ${slurm_id}, keeping dir: ${out}"
+        return 2
+    fi
+    case "$out" in
+        ''|COMPLETED|CANCELLED|FAILED|TIMEOUT|NODE_FAIL|PREEMPTED|BOOT_FAIL|DEADLINE|OUT_OF_MEMORY)
+            log_warning "${id}: Slurm job ${slurm_id} is finished: ${out:-not in queue}"
+            return 1
+            ;;
+    esac
+    log "${id}: Slurm job ${slurm_id} is still active: ${out}"
+    return 0
+}
+
+
+function clean_dir() {
+    local id="$1"
+    local dir="${DIR}/${id}"
+    log "${id}: Removing: $dir"
+    $DRY_RUN && return 0
+    if ! rm -rf -- "$dir"; then
+        log_error "${id}: Removal failed: $dir"
+        FAILED=true
+    fi
+}
+
+
+function check_active_slurm() {
+    # reset the mtime of dirs whose job is still in Slurm, remove the dir (if $2 is true) of jobs that are not
+    local id="$1" remove="$2" rc=0
+    is_active_slurm "$id" || rc=$?
+    case $rc in
+        0)
+            log "${id}: Resetting dir mtime for active job still in Slurm"
+            $DRY_RUN || touch "${DIR}/${id}"
+            ;;
+        1)
+            ! $remove || clean_dir "$id"
+            ;;
+        *)
+            FAILED=true
+            ;;
+    esac
+}
+
+
+function clean() {
+    PERCENT=$(percent_full)
+    local hours min_mtime mtime id
+    local now=$(date '+%s')
+    if [ -n "$HOURS" ]; then
+        log "Hours overridden by -r option: $HOURS"
+        hours="$HOURS"
+    else
+        hours=$(hours)
+    fi
+    min_mtime=$(date --date="$hours hours ago" '+%s')
+    log "At $(date), $DIR is ${PERCENT}% full; scratch dirs older than $(date --date="$hours hours ago") ($hours hours) will be removed"
+    while read -r mtime id; do
+        mtime="${mtime%.*}"
+        if ! isint "$id" >/dev/null; then
+            log_warning "Skipping non-job entry, is $DIR a staging dir?: ${DIR}/${id}"
+            continue
+        fi
+        if is_active "$id"; then
+            if [[ $(($now - $mtime)) -gt $(($LIMIT_HOURS * 60 * 60)) ]]; then
+                log_warning "${id}: Supposedly active job dir older than limit $LIMIT_HOURS hours"
+                check_active_slurm "$id" true
+            elif [[ $(($now - $mtime)) -gt $(($WARN_HOURS * 60 * 60)) ]]; then
+                log_warning "${id}: Supposedly active job dir older than warn $WARN_HOURS hours"
+                check_active_slurm "$id" false
+            else
+                log "${id}: Ignoring active"
+            fi
+        else
+            clean_dir "$id"
+        fi
+    done < <(find "$DIR" -mindepth 1 -maxdepth 1 -ignore_readdir_race ! -newermt "@${min_mtime}" -printf '%T@ %f\n' | sort -n)
+    # exit status of the find | sort in the process substitution
+    if ! wait $!; then
+        log_error "Failed to list $DIR"
+        FAILED=true
+    fi
+}
+
+
+function main() {
+    for DIR in "$@"; do
+        [ -d "$DIR" ] || error "Invalid directory: $DIR"
+        clean
+    done
+    ! $FAILED || error "Cleanup finished with errors, see above"
+}
+
+
+exec 9>"$LOCK"
+if ! flock -n 9; then
+    log_warning "Another run is in progress (lock: $LOCK), exiting"
+    exit 0
+fi
+log "Acquired lock: $LOCK"
+main "$@"

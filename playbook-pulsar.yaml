@@ -17,6 +17,12 @@
         mode: "{{ item.mode | default(omit) }}"
         state: directory
       loop: "{{ pulsar_directories }}"
+    - name: Install pulsar-clean-jobs script
+      ansible.builtin.template:
+        src: admin/pulsar-clean-jobs.j2
+        dest: "{{ pulsar_cleanup_bin_dir }}/pulsar-clean-jobs"
+        mode: "0755"
+      tags: cleanup
   roles:
     - role: galaxyproject.miniconda
       when: miniconda_prefix is defined
@@ -27,3 +33,5 @@
       tags: cvmfsexec
     - role: galaxyproject.general.supervisor
       tags: supervisor
+    - role: galaxyproject.general.cron
+      tags: cleanup
