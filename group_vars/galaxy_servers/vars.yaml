@@ -148,6 +148,7 @@ galaxy_config_files:
   #  dest: "{{ galaxy_local_tools_dir }}/bioconductor.png"
 
 # NGINX
+nginx_source: nginx.org
 nginx_conf_user: nginx
 nginx_conf_group: "{{ galaxy_group }}"
 nginx_selinux_allow_local_connections: true

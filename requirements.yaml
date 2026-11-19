@@ -10,7 +10,9 @@ roles:
   - name: galaxyproject.miniconda
     version: 0.3.4
   - name: galaxyproject.nginx
-    version: 1.0.2
+    # nginx-org-repo branch; update when a version is released
+    src: https://github.com/galaxyproject/ansible-nginx
+    version: 3212e86f1e1662decfe78ffbf31fce47de0f89de
   - name: galaxyproject.postfix
     version: 0.2.1
   - name: galaxyproject.postgresql
