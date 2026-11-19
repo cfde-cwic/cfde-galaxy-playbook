@@ -146,6 +146,8 @@
           dest: cleanup_galaxy_all.sh
         - src: admin/pulsar-clean-jobs.j2
           dest: pulsar-clean-jobs
+        - src: admin/galaxy-clean-job-dirs.j2
+          dest: galaxy-clean-job-dirs
       when: "inventory_hostname in groups['galaxy_cleanup_servers']"
       tags: cleanup
 

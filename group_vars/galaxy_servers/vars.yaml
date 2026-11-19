@@ -45,14 +45,9 @@ galaxy_config_new_file_path: "{{ galaxy_shared_rw_root }}/scratch"
 ## used by: cleanup cron job script (hosts in galaxy_cleanup_servers)
 galaxy_cleanup_bin_dir: "{{ galaxy_local_root }}/bin"
 galaxy_cleanup_job_dir_days: 14
-# Job dirs are hashed by job id (galaxy.util.directory_hash_id) and the depth depends on the id length:
-# 4-5 digits: 001/1234, 6-8 digits: 000/123/123456, 9-11 digits: 000/100/000/100000000. Match exactly those
-# paths instead of a fixed depth. Ids < 1000 (000/123) are indistinguishable from hash dirs and are not matched.
-galaxy_cleanup_job_dir_regex: >-
-  {{ galaxy_job_working_directory }}/([0-9]{3}/[0-9]{4,5}|[0-9]{3}/[0-9]{3}/[0-9]{6,8}|[0-9]{3}/[0-9]{3}/[0-9]{3}/[0-9]{9,11})
 galaxy_cleanup_jobs:
-  # job working dirs (successful jobs are removed by cleanup_job: onsuccess, this catches failed/orphaned ones)
-  - "/bin/find {{ galaxy_job_working_directory }} -mindepth 2 -maxdepth 4 -type d -regextype posix-extended -regex '{{ galaxy_cleanup_job_dir_regex }}' -prune -mtime +{{ galaxy_cleanup_job_dir_days }} -print -exec rm -rf {} +"
+  # job working dirs of finished jobs (successful ones are already removed by cleanup_job: onsuccess)
+  - "{{ galaxy_cleanup_bin_dir }}/galaxy-clean-job-dirs"
   # empty job dir hash dirs, idle >1h to avoid racing Galaxy creating a new job dir
   - "/bin/find {{ galaxy_job_working_directory }} -mindepth 1 -maxdepth 3 -type d -regextype posix-extended -regex '{{ galaxy_job_working_directory }}/[0-9]{3}(/[0-9]{3}){0,2}' -empty -mmin +60 -print -delete"
   # embedded pulsar staging dirs
