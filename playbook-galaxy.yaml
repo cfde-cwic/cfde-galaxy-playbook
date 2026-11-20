@@ -56,12 +56,11 @@
     - role: galaxyproject.galaxy.database
       become_user: "{{ galaxy_user_name }}"
   post_tasks:
+    # rm -rf instead of file/state=absent: the file module's output is too
+    # noisy here, and hiding it with no_log also hid why the task sometimes failed.
     - name: Remove node_modules
-      file:
-        path: "{{ galaxy_server_dir }}/client/node_modules"
-        state: absent
-      diff: false
-      no_log: true
+      ansible.builtin.command: rm -rf "{{ galaxy_server_dir }}/client/node_modules"
+      changed_when: false
 
     - name: Find plugin node_modules
       find:
