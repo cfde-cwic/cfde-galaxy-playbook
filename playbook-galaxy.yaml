@@ -3,6 +3,12 @@
 
 - name: Galaxy
   hosts: galaxy_servers
+  vars:
+    __galaxy_selinux_fcontexts:
+      - path: "{{ galaxy_venv_dir }}/bin"
+        setype: bin_t
+      - path: "{{ galaxy_server_dir }}/static"
+        setype: httpd_sys_content_t
   pre_tasks:
     - name: Create local tools dir
       file:
@@ -56,24 +62,29 @@
     - role: galaxyproject.galaxy.database
       become_user: "{{ galaxy_user_name }}"
   tasks:
-    # Runs after the venv role but before handlers, so a rebuilt venv is
-    # relabeled before Galaxy restarts. Without bin_t, systemd (init_t) execs
-    # galaxyctl (var_t) with no domain transition and Galaxy runs as init_t.
-    - name: Set SELinux bin_t file context on Galaxy venv bin dir
+    # Runs after the venv and client roles but before handlers, so a rebuilt
+    # venv or client is relabeled before Galaxy restarts.
+    # - venv/bin bin_t: without it systemd (init_t) execs galaxyctl (var_t) with
+    #   no domain transition and Galaxy runs as init_t.
+    # - static httpd_sys_content_t: nginx (httpd_t) serves these files directly
+    #   and can't read var_t.
+    - name: Set SELinux file contexts for Galaxy
       community.general.sefcontext:
-        target: "{{ galaxy_venv_dir }}/bin(/.*)?"
-        setype: bin_t
+        target: "{{ item.path }}(/.*)?"
+        setype: "{{ item.setype }}"
         state: present
+      loop: "{{ __galaxy_selinux_fcontexts }}"
       vars:
         # seobject is only importable by the system python, not the ansible venv
         ansible_python_interpreter: /usr/bin/python3
       when: ansible_selinux.status != 'disabled'
       tags: selinux
 
-    - name: Apply SELinux file context to Galaxy venv bin dir
-      ansible.builtin.command: restorecon -Rv "{{ galaxy_venv_dir }}/bin"
-      register: __galaxy_venv_restorecon
-      changed_when: __galaxy_venv_restorecon.stdout | length > 0
+    - name: Apply SELinux file contexts for Galaxy
+      ansible.builtin.command: restorecon -Rv "{{ item.path }}"
+      loop: "{{ __galaxy_selinux_fcontexts }}"
+      register: __galaxy_restorecon
+      changed_when: __galaxy_restorecon.stdout | length > 0
       when: ansible_selinux.status != 'disabled'
       tags: selinux
   post_tasks:
