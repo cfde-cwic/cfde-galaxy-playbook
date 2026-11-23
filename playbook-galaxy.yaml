@@ -55,6 +55,27 @@
     - role: galaxyproject.galaxy.client
     - role: galaxyproject.galaxy.database
       become_user: "{{ galaxy_user_name }}"
+  tasks:
+    # Runs after the venv role but before handlers, so a rebuilt venv is
+    # relabeled before Galaxy restarts. Without bin_t, systemd (init_t) execs
+    # galaxyctl (var_t) with no domain transition and Galaxy runs as init_t.
+    - name: Set SELinux bin_t file context on Galaxy venv bin dir
+      community.general.sefcontext:
+        target: "{{ galaxy_venv_dir }}/bin(/.*)?"
+        setype: bin_t
+        state: present
+      vars:
+        # seobject is only importable by the system python, not the ansible venv
+        ansible_python_interpreter: /usr/bin/python3
+      when: ansible_selinux.status != 'disabled'
+      tags: selinux
+
+    - name: Apply SELinux file context to Galaxy venv bin dir
+      ansible.builtin.command: restorecon -Rv "{{ galaxy_venv_dir }}/bin"
+      register: __galaxy_venv_restorecon
+      changed_when: __galaxy_venv_restorecon.stdout | length > 0
+      when: ansible_selinux.status != 'disabled'
+      tags: selinux
   post_tasks:
     # rm -rf instead of file/state=absent: the file module's output is too
     # noisy here, and hiding it with no_log also hid why the task sometimes failed.
