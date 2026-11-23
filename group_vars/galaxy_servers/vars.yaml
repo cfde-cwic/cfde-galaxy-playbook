@@ -164,8 +164,12 @@ nginx_conf_http:
 nginx_ssl_config_profile: modern
 nginx_conf_ssl_certificate: "/etc/letsencrypt/live/{{ galaxy_instance_certname }}/fullchain.pem"
 nginx_conf_ssl_certificate_key: "/etc/letsencrypt/live/{{ galaxy_instance_certname }}/privkey.pem"
-# Trust anchors for verifying OCSP responses (ssl_stapling_verify); must contain
-# the root CA, which fullchain.pem does not
+# OCSP stapling off (the modern profile enables it): OCSP is optional for CAs
+# and largely unused by browsers
+nginx_conf_ssl_stapling: "off"
+nginx_conf_ssl_stapling_verify: "off"
+# Unused with stapling off (no client certs either), but the role's
+# ssl-internal.yml requires it to be defined
 nginx_conf_ssl_trusted_certificate: /etc/pki/tls/certs/ca-bundle.crt
 
 gxadmin_dir: "/opt/gxadmin"
