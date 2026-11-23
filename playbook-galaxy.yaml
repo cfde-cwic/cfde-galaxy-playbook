@@ -87,6 +87,19 @@
       changed_when: __galaxy_restorecon.stdout | length > 0
       when: ansible_selinux.status != 'disabled'
       tags: selinux
+
+    # Galaxy hands dataset downloads to nginx (X-Accel-Redirect); datasets are
+    # on Corral NFS (nfs_t), which nginx (httpd_t) can't read without this.
+    - name: Allow nginx to serve datasets from NFS
+      ansible.posix.seboolean:
+        name: httpd_use_nfs
+        state: true
+        persistent: true
+      vars:
+        # needs the system python's selinux bindings, not the ansible venv
+        ansible_python_interpreter: /usr/bin/python3
+      when: ansible_selinux.status != 'disabled'
+      tags: selinux
   post_tasks:
     # rm -rf instead of file/state=absent: the file module's output is too
     # noisy here, and hiding it with no_log also hid why the task sometimes failed.
